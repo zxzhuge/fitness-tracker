@@ -109,12 +109,57 @@ uv run python app.py
 
 访问 http://127.0.0.1:5000 即可使用。
 
+## Docker 部署
+
+项目提供了 Docker Compose 配置，一行命令即可启动：
+
+### 前置要求
+
+- [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)
+
+### 1. 配置环境变量
+
+确保项目根目录已配置好 `.env` 文件（同上一步）：
+
+```bash
+cp .env.example .env
+# 编辑 .env 填写你的 API 密钥
+```
+
+### 2. 启动服务
+
+```bash
+docker compose up -d --build
+```
+
+访问 http://localhost:5000 即可使用。
+
+### 常用命令
+
+```bash
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose down
+
+# 重新构建并启动（代码更新后）
+docker compose up -d --build
+```
+
+### 数据持久化
+
+`data/` 目录通过 volume 挂载，容器重启不会丢失打卡记录、体重数据和聊天历史。
+
 ## 项目结构
 
 ```
 fitness-tracker/
 ├── app.py                  # Flask 应用主文件（全部后端逻辑）
 ├── pyproject.toml          # 项目依赖配置
+├── Dockerfile              # Docker 镜像构建文件
+├── docker-compose.yml      # Docker Compose 编排配置
+├── .dockerignore           # Docker 构建排除规则
 ├── .env                    # 环境变量（API 密钥等，不入版本库）
 ├── prompts/
 │   ├── system_prompt.md    # AI 聊天人设定义
