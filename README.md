@@ -6,6 +6,14 @@
 ![Flask](https://img.shields.io/badge/Flask-3.1+-green?logo=flask&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+## 效果截图
+
+![Snipaste_2026-06-13_20-18-19.png](./img/Snipaste_2026-06-13_20-18-19.png)
+
+![Snipaste_2026-06-13_20-18-31.png](./img/Snipaste_2026-06-13_20-18-31.png)
+
+![Snipaste_2026-06-13_20-18-41.png](./img/Snipaste_2026-06-13_20-18-41.png)
+
 ## 功能特性
 
 ### 健身记录管理
@@ -56,7 +64,7 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/fitness-tracker.git
+git clone https://github.com/zxzhuge/fitness-tracker.git
 cd fitness-tracker
 ```
 
@@ -162,6 +170,12 @@ AI 聊天的行为通过 `prompts/` 目录下的 Markdown 文件控制：
 - `data/` 目录在首次运行时自动创建，无需手动初始化
 - 聊天历史保留最近 10 条消息作为 LLM 上下文，完整历史持久化到磁盘
 - AI 总结结果缓存在浏览器 `sessionStorage`，刷新页面不会重复请求
+
+## 支持作者
+
+觉得有用的话，打赏作者一杯奶茶呗，谢谢喵！！！
+
+<img src="./img/mm_facetoface_collect_qrcode_1781353840774.png" alt="mm_facetoface_collect_qrcode_1781353840774.png" style="zoom: 18%;" /> 
 
 ## License
 
