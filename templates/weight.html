@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}体重记录 - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>体重记录</h1>
+    <p class="page-desc">追踪体重变化，掌握身体趋势</p>
+</div>
+
+<!-- Add Weight Form -->
+<div class="card">
+    <div class="card-header">
+        <h2><i data-lucide="plus-circle"></i> 记录体重</h2>
+    </div>
+    <form action="{{ url_for('add_weight') }}" method="POST" class="checkin-form">
+        <div class="form-row form-aligned">
+            <div class="form-group">
+            <label for="date">日期</label>
+            <input type="date" id="date" name="date" required>
+        </div>
+        <div class="form-group">
+            <label for="weight">体重 (kg)</label>
+            <div class="number-input-wrap">
+                <input type="number" id="weight" name="weight" min="20" max="300" step="0.1" placeholder="70.0" required>
+                <div class="number-spinner">
+                    <button type="button" onclick="stepWeight(0.1)" tabindex="-1">+</button>
+                    <button type="button" onclick="stepWeight(-0.1)" tabindex="-1">−</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-group form-group-btn">
+            <button type="submit" class="btn btn-primary">记录</button>
+        </div>
+        </div>
+    </form>
+</div>
+
+<!-- Weight Chart -->
+{% if weights %}
+<div class="card">
+    <div class="card-header">
+        <h2><i data-lucide="trending-up"></i> 体重趋势图</h2>
+    </div>
+    <div class="chart-container chart-lg">
+        <canvas id="weightChartPage"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Weight List -->
+<div class="card">
+    <div class="card-header">
+        <h2><i data-lucide="list"></i> 历史记录</h2>
+    </div>
+
+    {% if weights %}
+    <table>
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>体重 (kg)</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in weights %}
+            <tr>
+                <td>{{ w.date }}</td>
+                <td>
+                    <span class="mono-value">{{ w.weight }}</span>
+                </td>
+                <td>
+                    <form action="{{ url_for('delete_weight', weight_id=w.id) }}" method="POST"
+                          class="delete-form"
+                          onsubmit="return confirm('确定删除这条记录吗？')">
+                        <button type="submit" class="btn-icon" title="删除">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>还没有体重记录，使用上面的表单添加第一条吧！</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if weights %}
+<script>
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+    function stepWeight(delta) {
+        const input = document.getElementById('weight');
+        const val = parseFloat(input.value) || parseFloat(input.placeholder) || 70;
+        const min = parseFloat(input.min) || 20;
+        const max = parseFloat(input.max) || 300;
+        const newVal = Math.round((val + delta) * 10) / 10;
+        if (newVal >= min && newVal <= max) {
+            input.value = newVal.toFixed(1);
+        }
+    }
+
+    const allWeights = {{ weights | sort(attribute='date') | tojson }};
+    const dates = allWeights.map(w => w.date);
+    const weightVals = allWeights.map(w => w.weight);
+
+    const ctx = document.getElementById('weightChartPage').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: '体重 (kg)',
+                data: weightVals,
+                borderColor: '#EAB308',
+                backgroundColor: 'rgba(234, 179, 8, 0.04)',
+                borderWidth: 1.5,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: '#EAB308',
+                pointBorderColor: '#EAB308',
+                pointHoverRadius: 6,
+                pointHoverBorderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1C1C1F',
+                    borderColor: 'rgba(255,255,255,0.06)',
+                    borderWidth: 1,
+                    titleFont: { size: 13, family: 'Inter' },
+                    bodyFont: { size: 12, family: 'JetBrains Mono' },
+                    padding: 10,
+                    cornerRadius: 6,
+                    displayColors: false,
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#63636B', font: { size: 11, family: 'JetBrains Mono' } },
+                    border: { display: false }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.03)' },
+                    ticks: { color: '#63636B', font: { size: 11, family: 'JetBrains Mono' } },
+                    border: { display: false }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+</script>
+{% else %}
+<script>
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+    function stepWeight(delta) {
+        const input = document.getElementById('weight');
+        const val = parseFloat(input.value) || parseFloat(input.placeholder) || 70;
+        const min = parseFloat(input.min) || 20;
+        const max = parseFloat(input.max) || 300;
+        const newVal = Math.round((val + delta) * 10) / 10;
+        if (newVal >= min && newVal <= max) {
+            input.value = newVal.toFixed(1);
+        }
+    }
+</script>
+{% endif %}
+{% endblock %}

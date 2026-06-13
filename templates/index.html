@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="main-grid">
+
+        <!-- LEFT: Chat -->
+        <div class="left-col fade-in delay-1">
+            <div class="card chat-card">
+                <div class="card-header">
+                    <h2><i data-lucide="message-circle"></i> 同事小陈</h2>
+                </div>
+                <div class="chat-container">
+                    <div class="messages" id="chatMessages">
+                        <button id="loadMoreBtn" class="load-more-btn"
+                                onclick="loadMoreMessages()" style="display:none;">
+                            加载更多...
+                        </button>
+                        <div class="welcome-msg">
+                            小陈去年5月开始健身，效果超好！<br>跟他聊聊吧
+                        </div>
+                    </div>
+                    <div class="chat-input-bar">
+                        <input type="text" id="chatInput" placeholder="说点什么..."
+                               onkeypress="if(event.key==='Enter')sendMessage()">
+                        <button id="sendBtn" class="btn btn-primary" onclick="sendMessage()">发送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: Dashboard -->
+        <div class="mid-col fade-in delay-2">
+
+            <!-- Check-in Banner -->
+            {% if not checked_in_today %}
+            <div class="checkin-banner">
+                <div>
+                    <h3><i data-lucide="alert-circle"></i> 今天还没打卡</h3>
+                    <p>跟着视频锻炼完，记得来打卡！</p>
+                </div>
+                <form action="{{ url_for('add_checkin') }}" method="POST" class="banner-form">
+                    <input type="hidden" name="date" value="{{ today }}">
+                    <input type="text" name="note" placeholder="今天练了什么？(可选)">
+                    <button type="submit" class="btn btn-banner">打卡</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="checkin-banner checked">
+                <div>
+                    <h3><i data-lucide="check-circle"></i> 今天已打卡</h3>
+                    <p>继续保持，你做得很棒！</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card fade-in delay-1">
+                    <div class="stat-icon"><i data-lucide="flame"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value">{{ streak }}</div>
+                        <div class="stat-label">连续打卡</div>
+                    </div>
+                </div>
+                <div class="stat-card fade-in delay-2">
+                    <div class="stat-icon"><i data-lucide="dumbbell"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value">{{ total_checkins }}</div>
+                        <div class="stat-label">总打卡</div>
+                    </div>
+                </div>
+                <div class="stat-card fade-in delay-3">
+                    <div class="stat-icon"><i data-lucide="scale"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value">{{ current_weight if current_weight else '--' }}</div>
+                        <div class="stat-label">体重 kg</div>
+                    </div>
+                </div>
+                <div class="stat-card fade-in delay-4">
+                    <div class="stat-icon">
+                        {% if weight_change is not none and weight_change < 0 %}
+                            <i data-lucide="trending-down" style="color: var(--success)"></i>
+                        {% elif weight_change is not none and weight_change > 0 %}
+                            <i data-lucide="trending-up" style="color: var(--danger)"></i>
+                        {% else %}
+                            <i data-lucide="minus"></i>
+                        {% endif %}
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value"
+                             {% if weight_change is not none %}
+                                style="color: {% if weight_change < 0 %}var(--success){% elif weight_change > 0 %}var(--danger){% endif %}"
+                             {% endif %}>
+                            {% if weight_change is not none %}
+                                {{ '+' if weight_change > 0 else '' }}{{ weight_change }}
+                            {% else %}--{% endif %}
+                        </div>
+                        <div class="stat-label">变化 kg</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar -->
+            <div class="card fade-in delay-4">
+                <div class="card-header">
+                    <h2><i data-lucide="calendar"></i> {{ year }}年{{ month }}月</h2>
+                    <a href="{{ url_for('workouts_page') }}" class="btn btn-sm">全部 →</a>
+                </div>
+                <div class="calendar">
+                    <div class="calendar-header">
+                        <span>一</span><span>二</span><span>三</span>
+                        <span>四</span><span>五</span><span>六</span><span>日</span>
+                    </div>
+                    <div class="calendar-grid">
+                        {% for week in calendar_weeks %}
+                        <div class="calendar-week">
+                            {% for d in week %}
+                                {% if d.day == 0 %}
+                                    <div class="calendar-day empty"></div>
+                                {% elif d.checked %}
+                                    <div class="calendar-day checked{% if d.is_today %} today{% endif %}">{{ d.day }}</div>
+                                {% elif d.is_today %}
+                                    <div class="calendar-day today">{{ d.day }}</div>
+                                {% else %}
+                                    <div class="calendar-day">{{ d.day }}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weight Chart -->
+            {% if chart_weights %}
+            <div class="card fade-in delay-5">
+                <div class="card-header">
+                    <h2><i data-lucide="trending-up"></i> 体重趋势</h2>
+                    <a href="{{ url_for('weight_page') }}" class="btn btn-sm">管理 →</a>
+                </div>
+                <div class="chart-container chart-sm">
+                    <canvas id="weightChart"></canvas>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- RIGHT: AI Summary -->
+        <div class="right-col fade-in delay-3">
+            <div class="card ai-card">
+                <div class="card-header">
+                    <h2><i data-lucide="sparkles"></i> AI 健身总结</h2>
+                </div>
+                <div class="ai-summary" id="aiSummary">
+                    <p class="loading-text">AI 正在分析你的健身数据...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if chart_weights %}
+<script>
+    const ctx = document.getElementById('weightChart').getContext('2d');
+    const dates = {{ chart_weights | map(attribute='date') | list | tojson }};
+    const weights = {{ chart_weights | map(attribute='weight') | list | tojson }};
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: '体重 (kg)',
+                data: weights,
+                borderColor: '#EAB308',
+                backgroundColor: 'rgba(234, 179, 8, 0.04)',
+                borderWidth: 1.5,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: '#EAB308',
+                pointBorderColor: '#EAB308',
+                pointHoverRadius: 5,
+                pointHoverBorderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1C1C1F',
+                    borderColor: 'rgba(255,255,255,0.06)',
+                    borderWidth: 1,
+                    titleFont: { size: 12, family: 'Inter' },
+                    bodyFont: { size: 11, family: 'JetBrains Mono' },
+                    padding: 10,
+                    cornerRadius: 6,
+                    displayColors: false,
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#63636B', font: { size: 10, family: 'JetBrains Mono' } },
+                    border: { display: false }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.03)' },
+                    ticks: { color: '#63636B', font: { size: 10, family: 'JetBrains Mono' } },
+                    border: { display: false }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+</script>
+{% endif %}
+
+<script>
+    // ── Chat ──
+    let chatHistory = [];
+    let displayedCount = 0;
+    const BATCH_SIZE = 20;
+
+    function addMessage(role, text) {
+        const messagesDiv = document.getElementById('chatMessages');
+        const welcome = messagesDiv.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message ' + role;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+        wrapper.appendChild(bubble);
+        messagesDiv.appendChild(wrapper);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return bubble;
+    }
+
+    function displayBatch() {
+        const messagesDiv = document.getElementById('chatMessages');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        const welcome = messagesDiv.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+
+        const start = displayedCount;
+        const end = Math.min(displayedCount + BATCH_SIZE, chatHistory.length);
+
+        const refNode = loadMoreBtn.nextSibling;
+        for (let i = start; i < end; i++) {
+            const msg = chatHistory[i];
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message ' + msg.role;
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = msg.content;
+            wrapper.appendChild(bubble);
+            messagesDiv.insertBefore(wrapper, refNode);
+        }
+        displayedCount = end;
+
+        loadMoreBtn.style.display = (displayedCount < chatHistory.length) ? 'block' : 'none';
+    }
+
+    function loadMoreMessages() {
+        const messagesDiv = document.getElementById('chatMessages');
+        const prevHeight = messagesDiv.scrollHeight;
+        displayBatch();
+        messagesDiv.scrollTop = messagesDiv.scrollHeight - prevHeight;
+    }
+
+    async function loadChatHistory() {
+        try {
+            const resp = await fetch('/api/chat/history');
+            const data = await resp.json();
+            chatHistory = data.messages || [];
+            if (chatHistory.length > 0) {
+                displayBatch();
+            }
+        } catch (e) {
+            console.error('Failed to load chat history:', e);
+        }
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const text = input.value.trim();
+        if (!text) return;
+
+        input.value = '';
+        sendBtn.disabled = true;
+        sendBtn.textContent = '...';
+
+        addMessage('user', text);
+        chatHistory.push({ role: 'user', content: text });
+
+        const bubble = addMessage('assistant', '');
+        bubble.innerHTML = '<span class="typing">...</span>';
+
+        try {
+            const resp = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: chatHistory }),
+            });
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '', fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const content = line.slice(6);
+                        if (content === '[DONE]') break;
+                        fullText += content;
+                        bubble.innerHTML = fullText.replace(/\n/g, '<br>') + '<span class="cursor">|</span>';
+                    }
+                }
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+            }
+            bubble.innerHTML = fullText.replace(/\n/g, '<br>') || '未收到回复';
+            chatHistory.push({ role: 'assistant', content: fullText });
+            fetch('/api/chat/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: chatHistory }),
+            }).catch(() => {});
+        } catch (err) {
+            bubble.innerHTML = '<span style="color:var(--danger);">发送失败</span>';
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = '发送';
+        }
+    }
+
+    window.addEventListener('load', loadChatHistory);
+
+    // ── AI Summary ──
+    const SUMMARY_KEYS = ['时间跨度', '打卡总成绩', '体重总成绩', '核心里程碑', '教练建议'];
+    const SUMMARY_ICONS = {
+        '时间跨度': 'clock',
+        '打卡总成绩': 'calendar-check',
+        '体重总成绩': 'scale',
+        '核心里程碑': 'trophy',
+        '教练建议': 'lightbulb'
+    };
+
+    function renderSummaryJson(jsonStr) {
+        let cleaned = jsonStr.trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) cleaned = jsonMatch[0];
+
+        try {
+            const data = JSON.parse(cleaned);
+            let html = '';
+            let delay = 0;
+            for (const key of SUMMARY_KEYS) {
+                if (data[key] && data[key].trim()) {
+                    const icon = SUMMARY_ICONS[key] || 'info';
+                    html += '<div class="summary-item" style="animation-delay:' + delay + 'ms">'
+                        + '<div class="summary-icon"><i data-lucide="' + icon + '"></i></div>'
+                        + '<div class="summary-body">'
+                        + '<div class="summary-label">' + key + '</div>'
+                        + '<div class="summary-value">' + data[key].trim() + '</div>'
+                        + '</div></div>';
+                    delay += 80;
+                }
+            }
+            if (html && typeof lucide !== 'undefined') {
+                // Defer icon creation to next frame so DOM is ready
+                requestAnimationFrame(() => { lucide.createIcons(); });
+            }
+            return html || '<p class="loading-text">暂无数据</p>';
+        } catch (e) {
+            return null;
+        }
+    }
+
+    async function generateSummary() {
+        const div = document.getElementById('aiSummary');
+
+        const cached = sessionStorage.getItem('ai_summary');
+        if (cached) {
+            const rendered = renderSummaryJson(cached);
+            if (rendered) { div.innerHTML = rendered; return; }
+        }
+
+        div.innerHTML = '<p class="loading-text">AI 正在分析并生成总结...</p>';
+
+        try {
+            const resp = await fetch('/api/summary');
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '', fullText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const content = line.slice(6);
+                        if (content === '[DONE]') break;
+                        fullText += content;
+                    }
+                }
+            }
+            const rendered = renderSummaryJson(fullText);
+            if (rendered) {
+                div.innerHTML = rendered;
+            } else {
+                div.innerHTML = '<p style="color:var(--danger);">AI 输出格式异常</p>';
+            }
+            if (fullText) {
+                sessionStorage.setItem('ai_summary', fullText);
+            }
+        } catch (err) {
+            div.innerHTML = '<p style="color:var(--danger);">生成失败，请检查 API 配置</p>';
+        }
+    }
+
+    window.addEventListener('load', generateSummary);
+</script>
+{% endblock %}

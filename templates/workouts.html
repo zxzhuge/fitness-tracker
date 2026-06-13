@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}打卡记录 - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>打卡记录</h1>
+    <p class="page-desc">跟着视频锻炼完，来打个卡吧</p>
+</div>
+
+<!-- Check-in Form -->
+<div class="card">
+    <div class="card-header">
+        <h2><i data-lucide="plus-circle"></i> 今日打卡</h2>
+    </div>
+    <form action="{{ url_for('add_checkin') }}" method="POST" class="checkin-form">
+        <div class="form-row form-aligned">
+            <div class="form-group">
+                <label for="date">日期</label>
+                <input type="date" id="date" name="date" value="{{ today_str }}" required>
+            </div>
+            <div class="form-group form-group-wide">
+                <label for="note">备注</label>
+                <input type="text" id="note" name="note" placeholder="今天练了什么？(可选)">
+            </div>
+            <div class="form-group form-group-btn">
+                <button type="submit" class="btn btn-primary">打卡</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Check-in History -->
+<div class="card">
+    <div class="card-header">
+        <h2><i data-lucide="list"></i> 打卡历史</h2>
+    </div>
+
+    {% if workouts %}
+    <div class="checkin-list">
+        {% for w in workouts %}
+        <div class="checkin-item">
+            <div class="checkin-info">
+                <span class="checkin-date">{{ w.date }}</span>
+                {% if w.note %}
+                <span class="checkin-note">{{ w.note }}</span>
+                {% endif %}
+            </div>
+            <span class="checkin-badge"><i data-lucide="circle-check"></i></span>
+            <form action="{{ url_for('delete_checkin', workout_id=w.id) }}" method="POST"
+                  class="delete-form"
+                  onsubmit="return confirm('确定删除这条打卡记录吗？')">
+                <button type="submit" class="btn-icon" title="删除">
+                    <i data-lucide="x"></i>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    <p class="checkin-total">共 {{ workouts | length }} 次打卡</p>
+    {% else %}
+    <div class="empty-state">
+        <p>还没有打卡记录，使用上面的表单开始打卡吧！</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}
