@@ -175,7 +175,7 @@ AI 聊天的行为通过 `prompts/` 目录下的 Markdown 文件控制：
 
 觉得有用的话，打赏作者一杯奶茶呗，谢谢喵！！！
 
-<img src="./img/mm_facetoface_collect_qrcode_1781353840774.png" alt="mm_facetoface_collect_qrcode_1781353840774.png" style="zoom: 18%;" /> 
+<img src="./img/mm_facetoface_collect_qrcode_1781353840774.png" alt="mm_facetoface_collect_qrcode_1781353840774.png" width="150" /> 
 
 ## License
 
