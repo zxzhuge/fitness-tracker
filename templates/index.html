@@ -234,51 +234,118 @@
     let displayedCount = 0;
     const BATCH_SIZE = 20;
 
-    function addMessage(role, text) {
-        const messagesDiv = document.getElementById('chatMessages');
-        const welcome = messagesDiv.querySelector('.welcome-msg');
-        if (welcome) welcome.remove();
+    function getMessageDateKey(timestamp) {
+        if (!timestamp) return 'unknown';
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'message ' + role;
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        bubble.textContent = text;
-        wrapper.appendChild(bubble);
-        messagesDiv.appendChild(wrapper);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        return bubble;
+        const parsed = new Date(timestamp);
+        if (Number.isNaN(parsed.getTime())) return 'unknown';
+
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
     }
 
-    function displayBatch() {
+    function formatDayDivider(timestamp) {
+        if (!timestamp) return '较早记录';
+
+        const parsed = new Date(timestamp);
+        if (Number.isNaN(parsed.getTime())) return '较早记录';
+
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTarget = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+        const diffDays = Math.round((startOfToday - startOfTarget) / 86400000);
+        const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][parsed.getDay()];
+
+        if (diffDays === 0) return '今天';
+        if (diffDays === 1) return '昨天';
+        if (parsed.getFullYear() === now.getFullYear()) {
+            return (parsed.getMonth() + 1) + '月' + parsed.getDate() + '日 ' + weekday;
+        }
+
+        return parsed.getFullYear() + '年' + (parsed.getMonth() + 1) + '月' + parsed.getDate() + '日 ' + weekday;
+    }
+
+    function createDayDivider(label) {
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+
+        const text = document.createElement('span');
+        text.className = 'day-divider-label';
+        text.textContent = label;
+
+        divider.appendChild(text);
+        return divider;
+    }
+
+    function createMessageElement(message, index) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message ' + message.role;
+        wrapper.dataset.messageIndex = String(index);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = message.content || '';
+
+        wrapper.appendChild(bubble);
+
+        return { wrapper, bubble };
+    }
+
+    function getMessageNodes(index) {
+        const wrapper = document.querySelector('.message[data-message-index="' + index + '"]');
+        if (!wrapper) return null;
+
+        return {
+            wrapper,
+            bubble: wrapper.querySelector('.bubble'),
+        };
+    }
+
+    function renderVisibleMessages() {
         const messagesDiv = document.getElementById('chatMessages');
-        const loadMoreBtn = document.getElementById('loadMoreBtn');
         const welcome = messagesDiv.querySelector('.welcome-msg');
         if (welcome) welcome.remove();
 
-        const start = displayedCount;
-        const end = Math.min(displayedCount + BATCH_SIZE, chatHistory.length);
+        messagesDiv.querySelectorAll('.message, .day-divider').forEach(node => node.remove());
 
-        const refNode = loadMoreBtn.nextSibling;
-        for (let i = start; i < end; i++) {
-            const msg = chatHistory[i];
-            const wrapper = document.createElement('div');
-            wrapper.className = 'message ' + msg.role;
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble';
-            bubble.textContent = msg.content;
-            wrapper.appendChild(bubble);
-            messagesDiv.insertBefore(wrapper, refNode);
-        }
-        displayedCount = end;
+        const visibleMessages = chatHistory.slice(Math.max(chatHistory.length - displayedCount, 0));
+        let previousDateKey = null;
 
-        loadMoreBtn.style.display = (displayedCount < chatHistory.length) ? 'block' : 'none';
+        visibleMessages.forEach((message, offset) => {
+            const actualIndex = chatHistory.length - visibleMessages.length + offset;
+            const dateKey = getMessageDateKey(message.timestamp);
+            if (dateKey !== previousDateKey) {
+                messagesDiv.appendChild(createDayDivider(formatDayDivider(message.timestamp)));
+                previousDateKey = dateKey;
+            }
+
+            const { wrapper } = createMessageElement(message, actualIndex);
+            messagesDiv.appendChild(wrapper);
+        });
+
+        document.getElementById('loadMoreBtn').style.display = (displayedCount < chatHistory.length) ? 'block' : 'none';
+    }
+
+    function addMessage(role, text, timestamp = null) {
+        const message = { role, content: text, timestamp, timestamp_source: timestamp ? 'recorded' : null };
+        chatHistory.push(message);
+        displayedCount = Math.min(chatHistory.length, displayedCount + 1);
+
+        renderVisibleMessages();
+        const index = chatHistory.length - 1;
+        const ui = getMessageNodes(index);
+        const messagesDiv = document.getElementById('chatMessages');
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return ui;
     }
 
     function loadMoreMessages() {
         const messagesDiv = document.getElementById('chatMessages');
         const prevHeight = messagesDiv.scrollHeight;
-        displayBatch();
+        displayedCount = Math.min(chatHistory.length, displayedCount + BATCH_SIZE);
+        renderVisibleMessages();
         messagesDiv.scrollTop = messagesDiv.scrollHeight - prevHeight;
     }
 
@@ -288,7 +355,9 @@
             const data = await resp.json();
             chatHistory = data.messages || [];
             if (chatHistory.length > 0) {
-                displayBatch();
+                displayedCount = Math.min(BATCH_SIZE, chatHistory.length);
+                renderVisibleMessages();
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
             }
         } catch (e) {
             console.error('Failed to load chat history:', e);
@@ -305,10 +374,11 @@
         sendBtn.disabled = true;
         sendBtn.textContent = '...';
 
-        addMessage('user', text);
-        chatHistory.push({ role: 'user', content: text });
+        const userTimestamp = new Date().toISOString();
+        addMessage('user', text, userTimestamp);
 
-        const bubble = addMessage('assistant', '');
+        const assistantUi = addMessage('assistant', '', userTimestamp);
+        const bubble = assistantUi.bubble;
         bubble.innerHTML = '<span class="typing">...</span>';
 
         try {
@@ -320,6 +390,7 @@
             const reader = resp.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '', fullText = '';
+            const assistantIndex = chatHistory.length - 1;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -338,7 +409,13 @@
                 document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
             }
             bubble.innerHTML = fullText.replace(/\n/g, '<br>') || '未收到回复';
-            chatHistory.push({ role: 'assistant', content: fullText });
+            const assistantTimestamp = new Date().toISOString();
+            chatHistory[assistantIndex] = {
+                role: 'assistant',
+                content: fullText,
+                timestamp: assistantTimestamp,
+                timestamp_source: 'recorded'
+            };
             fetch('/api/chat/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -346,6 +423,9 @@
             }).catch(() => {});
         } catch (err) {
             bubble.innerHTML = '<span style="color:var(--danger);">发送失败</span>';
+            chatHistory.pop();
+            displayedCount = Math.max(displayedCount - 1, 0);
+            renderVisibleMessages();
         } finally {
             sendBtn.disabled = false;
             sendBtn.textContent = '发送';

@@ -55,9 +55,49 @@ def today_str() -> str:
     return date.today().isoformat()
 
 
+def now_iso_str() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def current_datetime_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 # ── Chat history ────────────────────────────────────────────
 
 CHAT_FILE = "history.json"
+
+
+def infer_legacy_timestamps(messages: list, filepath: Path) -> tuple[list, bool]:
+    if not messages:
+        return [], False
+
+    try:
+        base_time = datetime.fromtimestamp(filepath.stat().st_mtime)
+    except OSError:
+        base_time = datetime.now()
+
+    base_time = base_time.replace(second=0, microsecond=0)
+    inferred_start = base_time - timedelta(minutes=max(len(messages) - 1, 0))
+
+    migrated = []
+    changed = False
+    for index, message in enumerate(messages):
+        item = dict(message)
+        timestamp = normalize_timestamp(item.get("timestamp"))
+        if timestamp:
+            item["timestamp"] = timestamp
+            if item.get("timestamp_source") == "estimated":
+                item["timestamp_source"] = "estimated"
+            else:
+                item["timestamp_source"] = "recorded"
+        else:
+            item["timestamp"] = (inferred_start + timedelta(minutes=index)).isoformat(timespec="seconds")
+            item["timestamp_source"] = "estimated"
+            changed = True
+        migrated.append(item)
+
+    return migrated, changed
 
 
 def load_chat_history() -> list:
@@ -67,9 +107,11 @@ def load_chat_history() -> list:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
-                return [m for m in data if isinstance(m, dict)
-                        and m.get("role") in ("user", "assistant")
-                        and "content" in m]
+                history = normalize_chat_messages(data)
+                history, changed = infer_legacy_timestamps(history, filepath)
+                if changed:
+                    save_chat_history(history)
+                return history
         except (json.JSONDecodeError, ValueError):
             pass
     return []
@@ -79,6 +121,68 @@ def save_chat_history(messages: list) -> None:
     filepath = CHAT_DIR / CHAT_FILE
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
+
+
+def normalize_timestamp(timestamp: str | None) -> str | None:
+    if not timestamp or not isinstance(timestamp, str):
+        return None
+
+    try:
+        return datetime.fromisoformat(timestamp).isoformat(timespec="seconds")
+    except ValueError:
+        return None
+
+
+def normalize_chat_messages(messages: list) -> list:
+    normalized = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+
+        role = message.get("role")
+        content = message.get("content")
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            continue
+
+        item = {
+            "role": role,
+            "content": content,
+        }
+
+        timestamp = normalize_timestamp(message.get("timestamp"))
+        if timestamp:
+            item["timestamp"] = timestamp
+            item["timestamp_source"] = "recorded"
+
+        if message.get("timestamp_source") == "estimated":
+            item["timestamp_source"] = "estimated"
+
+        normalized.append(item)
+
+    return normalized
+
+
+def format_chat_timestamp(timestamp: str | None) -> str:
+    normalized = normalize_timestamp(timestamp)
+    if not normalized:
+        return "时间未知"
+    return datetime.fromisoformat(normalized).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def build_chat_history_context(messages: list, max_messages: int = 10) -> str:
+    normalized = normalize_chat_messages(messages)
+    if not normalized:
+        return ""
+
+    lines = []
+    for message in normalized[-max_messages:]:
+        speaker = "用户" if message["role"] == "user" else "小陈"
+        sent_at = format_chat_timestamp(message.get("timestamp"))
+        if message.get("timestamp_source") == "estimated":
+            sent_at = f"约 {sent_at}"
+        lines.append(f"- [{sent_at}] {speaker}: {message['content']}")
+
+    return "\n".join(lines)
 
 
 def calculate_streak(workouts: list) -> int:
@@ -119,7 +223,7 @@ def get_llm_client() -> OpenAI:
     return OpenAI(api_key=api_key, base_url=api_url)
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(messages: list | None = None) -> str:
     """Build the system prompt with user fitness context injected."""
     system_prompt = load_prompt("system_prompt.md")
 
@@ -147,7 +251,11 @@ def build_system_prompt() -> str:
     parts = [system_prompt]
     if context:
         parts.append(f"\n\n用户的健身数据：\n{context}")
-    parts.append(f"\n今日日期: {today_str()}")
+    history_context = build_chat_history_context(messages or [])
+    if history_context:
+        parts.append(f"\n最近聊天记录（含发送时间）：\n{history_context}")
+    parts.append(f"\n当前时间: {current_datetime_str()}")
+    parts.append(f"今日日期: {today_str()}")
     parts.append(f"总打卡次数: {total_checkins}")
     parts.append(f"当前连续打卡: {streak}天")
 
@@ -156,9 +264,10 @@ def build_system_prompt() -> str:
 
 def stream_llm(messages: list):
     """Generator that yields LLM response chunks as SSE events."""
-    system_prompt = build_system_prompt()
+    normalized_messages = normalize_chat_messages(messages)
+    system_prompt = build_system_prompt(normalized_messages)
 
-    if not messages or not isinstance(messages, list):
+    if not normalized_messages:
         yield "data: 请发送一条消息\n\n"
         yield "data: [DONE]\n\n"
         return
@@ -170,7 +279,10 @@ def stream_llm(messages: list):
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
-                *messages,
+                *[
+                    {"role": message["role"], "content": message["content"]}
+                    for message in normalized_messages
+                ],
             ],
             temperature=0.8,
             max_tokens=500,
@@ -338,7 +450,7 @@ def delete_weight(weight_id: int):
 def api_chat():
     """SSE streaming endpoint: accepts conversation history as JSON."""
     data = request.get_json() or {}
-    messages = data.get("messages", [])
+    messages = normalize_chat_messages(data.get("messages", []))
 
     # Save full conversation to disk
     save_chat_history(messages)
@@ -367,7 +479,7 @@ def api_chat_history():
 def api_chat_save():
     """Save the full chat history (called after assistant response)."""
     data = request.get_json() or {}
-    messages = data.get("messages", [])
+    messages = normalize_chat_messages(data.get("messages", []))
     save_chat_history(messages)
     return {"ok": True}
 
