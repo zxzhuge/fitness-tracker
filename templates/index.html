@@ -8,7 +8,7 @@
 
         <!-- LEFT: Chat -->
         <div class="left-col fade-in delay-1">
-            <div class="card chat-card">
+            <div class="card chat-card" id="chatCard">
                 <div class="card-header">
                     <h2><i data-lucide="message-circle"></i> 同事小陈</h2>
                 </div>
@@ -233,6 +233,39 @@
     let chatHistory = [];
     let displayedCount = 0;
     const BATCH_SIZE = 20;
+    let chatHeightObserver = null;
+
+    function syncChatCardHeight() {
+        const chatCard = document.getElementById('chatCard');
+        const midCol = document.querySelector('.mid-col');
+        if (!chatCard || !midCol) return;
+
+        if (window.innerWidth <= 900) {
+            chatCard.style.height = '';
+            return;
+        }
+
+        const lastCard = midCol.lastElementChild;
+        const midRect = midCol.getBoundingClientRect();
+        const lastRect = lastCard ? lastCard.getBoundingClientRect() : null;
+        const targetHeight = lastRect
+            ? Math.ceil(lastRect.bottom - midRect.top)
+            : Math.ceil(midRect.height);
+        chatCard.style.height = targetHeight + 'px';
+    }
+
+    function initChatCardHeightSync() {
+        const midCol = document.querySelector('.mid-col');
+        if (!midCol) return;
+
+        syncChatCardHeight();
+        if (chatHeightObserver) chatHeightObserver.disconnect();
+
+        if ('ResizeObserver' in window) {
+            chatHeightObserver = new ResizeObserver(() => syncChatCardHeight());
+            chatHeightObserver.observe(midCol);
+        }
+    }
 
     function getMessageDateKey(timestamp) {
         if (!timestamp) return 'unknown';
@@ -432,7 +465,11 @@
         }
     }
 
-    window.addEventListener('load', loadChatHistory);
+    window.addEventListener('load', () => {
+        initChatCardHeightSync();
+        loadChatHistory();
+    });
+    window.addEventListener('resize', syncChatCardHeight);
 
     // ── AI Summary ──
     const SUMMARY_KEYS = ['时间跨度', '打卡总成绩', '体重总成绩', '核心里程碑', '教练建议'];
