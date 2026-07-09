@@ -320,9 +320,24 @@ def index():
         weight_change = round(weights[-1]["weight"] - weights[0]["weight"], 1)
     streak = calculate_streak(workouts)
 
-    # Calendar: current month grid
+    # Calendar: support viewing any month/year via query params
     now = datetime.now()
-    year, month = now.year, now.month
+    try:
+        year = int(request.args.get("year", now.year))
+    except (TypeError, ValueError):
+        year = now.year
+    try:
+        month = int(request.args.get("month", now.month))
+    except (TypeError, ValueError):
+        month = now.month
+    # Clamp to valid range
+    if month < 1:
+        month = 12
+        year -= 1
+    elif month > 12:
+        month = 1
+        year += 1
+
     cal = calendar.Calendar(firstweekday=0)  # Monday start
     month_days = cal.monthdayscalendar(year, month)
 
@@ -344,6 +359,14 @@ def index():
 
     chart_weights = weights[-30:] if len(weights) > 30 else weights
 
+    # Adjacent month navigation helpers
+    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_year, next_month = (year + 1, 1) if month == 12 else (year, month + 1)
+    is_current_month = (year == now.year and month == now.month)
+
+    # Year options for the selector: a window around the current year
+    year_options = list(range(now.year - 5, now.year + 6))
+
     return render_template(
         "index.html",
         checked_in_today=checked_in_today,
@@ -354,9 +377,70 @@ def index():
         calendar_weeks=calendar_weeks,
         year=year,
         month=month,
+        prev_year=prev_year,
+        prev_month=prev_month,
+        next_year=next_year,
+        next_month=next_month,
+        is_current_month=is_current_month,
+        now_year=now.year,
+        year_options=year_options,
         chart_weights=chart_weights,
         today=today,
     )
+
+
+@app.route("/api/calendar")
+def api_calendar():
+    """Return calendar grid data for a given year/month as JSON."""
+    now = datetime.now()
+    try:
+        year = int(request.args.get("year", now.year))
+    except (TypeError, ValueError):
+        year = now.year
+    try:
+        month = int(request.args.get("month", now.month))
+    except (TypeError, ValueError):
+        month = now.month
+    if month < 1:
+        month = 12
+        year -= 1
+    elif month > 12:
+        month = 1
+        year += 1
+
+    workouts = load_json("workouts.json")
+    workouts = [w for w in workouts if isinstance(w, dict) and "date" in w]
+    workout_dates = {w["date"] for w in workouts}
+    today = today_str()
+
+    cal = calendar.Calendar(firstweekday=0)
+    month_days = cal.monthdayscalendar(year, month)
+
+    weeks = []
+    for week in month_days:
+        row = []
+        for day in week:
+            if day == 0:
+                row.append({"day": 0, "checked": False, "is_today": False})
+            else:
+                d = f"{year}-{month:02d}-{day:02d}"
+                row.append({
+                    "day": day,
+                    "checked": d in workout_dates,
+                    "is_today": d == today,
+                })
+        weeks.append(row)
+
+    return {
+        "year": year,
+        "month": month,
+        "weeks": weeks,
+        "month_count": sum(
+            1 for w in workouts
+            if isinstance(w.get("date"), str)
+            and w["date"].startswith(f"{year:04d}-{month:02d}")
+        ),
+    }
 
 
 # ── Check-in routes ──────────────────────────────────────────

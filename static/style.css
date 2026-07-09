@@ -645,6 +645,100 @@ tr:last-child td { border-bottom: none; }
 /* ── Calendar ───────────────────────────────────────────── */
 .calendar { user-select: none; }
 
+.cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cal-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all var(--duration) ease-out;
+}
+
+.cal-arrow svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 2;
+}
+
+.cal-arrow:hover {
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-color: var(--border);
+}
+
+.cal-arrow:active { transform: scale(0.92); }
+
+.cal-year-nav {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--text-muted);
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    transition: all var(--duration) ease-out;
+}
+
+.cal-year-nav svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.8;
+}
+
+.cal-year-nav:hover { color: var(--accent); }
+
+.cal-year-select {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'Inter Tight', 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 1px 4px;
+    cursor: pointer;
+    transition: all var(--duration) ease-out;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.cal-year-select:hover {
+    background: var(--accent-dim);
+    border-color: var(--border);
+}
+
+.cal-year-select:focus {
+    outline: none;
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.cal-year-select option {
+    background: var(--bg-2);
+    color: var(--text);
+}
+
+#calWidget.cal-loading {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity var(--duration) ease-out;
+}
+
+.cal-title { user-select: none; }
+
 .calendar-header {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
