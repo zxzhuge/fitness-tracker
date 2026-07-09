@@ -19,10 +19,34 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 PROMPTS_DIR = BASE_DIR / "prompts"
 CHAT_DIR = DATA_DIR / "chats"
+EMOJI_DIR = BASE_DIR / "emoji"
 
 DATA_DIR.mkdir(exist_ok=True)
 PROMPTS_DIR.mkdir(exist_ok=True)
 CHAT_DIR.mkdir(exist_ok=True)
+EMOJI_DIR.mkdir(exist_ok=True)
+
+
+def list_emoji_names() -> list:
+    """Return emoji image file names (without extension) available in emoji/."""
+    if not EMOJI_DIR.exists():
+        return []
+    names = []
+    for p in sorted(EMOJI_DIR.iterdir()):
+        if p.is_file() and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+            names.append(p.stem)
+    return names
+
+
+def emoji_filename(name: str) -> str | None:
+    """Resolve an emoji name to its filename if it exists, else None."""
+    if not name or not EMOJI_DIR.exists():
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+        candidate = EMOJI_DIR / f"{name}{ext}"
+        if candidate.exists() and candidate.is_file():
+            return candidate.name
+    return None
 
 app = Flask(__name__)
 
@@ -33,7 +57,7 @@ def load_json(filename: str) -> list:
     filepath = DATA_DIR / filename
     if filepath.exists():
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             return data if isinstance(data, list) else []
         except (json.JSONDecodeError, ValueError):
@@ -104,7 +128,7 @@ def load_chat_history() -> list:
     filepath = CHAT_DIR / CHAT_FILE
     if filepath.exists():
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 history = normalize_chat_messages(data)
@@ -212,7 +236,7 @@ def load_prompt(name: str) -> str:
     """Load a prompt file from the prompts/ folder."""
     filepath = PROMPTS_DIR / name
     if filepath.exists():
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, "r", encoding="utf-8-sig") as f:
             return f.read().strip()
     return ""
 
@@ -258,6 +282,11 @@ def build_system_prompt(messages: list | None = None) -> str:
     parts.append(f"今日日期: {today_str()}")
     parts.append(f"总打卡次数: {total_checkins}")
     parts.append(f"当前连续打卡: {streak}天")
+
+    emoji_names = list_emoji_names()
+    if emoji_names:
+        parts.append("\n可用本地表情包（用 [:emoji:名称] 引用，例如 [:emoji:机智]）：")
+        parts.append("、".join(emoji_names))
 
     return "\n".join(parts)
 
@@ -529,6 +558,21 @@ def delete_weight(weight_id: int):
 
 
 # ── Chat API (SSE streaming) ─────────────────────────────────
+
+@app.route("/emoji/<name>")
+def emoji_image(name: str):
+    """Serve an emoji image by its name (without extension)."""
+    filename = emoji_filename(name)
+    if not filename:
+        return Response("emoji not found", status=404)
+    return send_file(EMOJI_DIR / filename)
+
+
+@app.route("/emoji/list.json")
+def emoji_list():
+    """Return available emoji names (for debugging)."""
+    return {"emojis": list_emoji_names()}
+
 
 @app.route("/api/chat", methods=["POST"])
 def api_chat():

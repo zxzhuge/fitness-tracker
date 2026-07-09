@@ -926,6 +926,18 @@ tr:last-child td { border-bottom: none; }
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
+.message .bubble img.chat-emoji {
+    display: inline-block;
+    width: 1.45em;
+    height: 1.45em;
+    margin: 0 2px;
+    vertical-align: text-bottom;
+    border-radius: 4px;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+}
+
 .message.user .bubble {
     background: linear-gradient(135deg, #FACC15 0%, #EAB308 100%);
     color: var(--bg);

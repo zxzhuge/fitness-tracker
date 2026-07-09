@@ -425,6 +425,31 @@
         return divider;
     }
 
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderMessageHtml(content) {
+        // Replace [:emoji:名] markers with <img>, escape everything else.
+        const re = /\[:emoji:([^\]]+)\]/g;
+        let result = '';
+        let lastIndex = 0;
+        let match;
+        while ((match = re.exec(content)) !== null) {
+            result += escapeHtml(content.slice(lastIndex, match.index));
+            const name = encodeURIComponent(match[1].trim());
+            result += `<img class="chat-emoji" alt="${match[1].trim()}" src="/emoji/${name}">`;
+            lastIndex = re.lastIndex;
+        }
+        result += escapeHtml(content.slice(lastIndex));
+        return result.replace(/\n/g, '<br>');
+    }
+
     function createMessageElement(message, index) {
         const wrapper = document.createElement('div');
         wrapper.className = 'message ' + message.role;
@@ -432,7 +457,7 @@
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        bubble.textContent = message.content || '';
+        bubble.innerHTML = renderMessageHtml(message.content || '');
 
         wrapper.appendChild(bubble);
 
@@ -549,12 +574,12 @@
                         const content = line.slice(6);
                         if (content === '[DONE]') break;
                         fullText += content;
-                        bubble.innerHTML = fullText.replace(/\n/g, '<br>') + '<span class="cursor">|</span>';
+                        bubble.innerHTML = renderMessageHtml(fullText) + '<span class="cursor">|</span>';
                     }
                 }
                 document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
             }
-            bubble.innerHTML = fullText.replace(/\n/g, '<br>') || '未收到回复';
+            bubble.innerHTML = renderMessageHtml(fullText) || '未收到回复';
             const assistantTimestamp = new Date().toISOString();
             chatHistory[assistantIndex] = {
                 role: 'assistant',
